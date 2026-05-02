@@ -4,7 +4,7 @@ import cors from 'cors';
 
 const app = express();
 
-app.use(cors()); // 🔥 LIBERA CORS
+app.use(cors());
 app.use(express.json());
 
 app.post('/pix', async (req, res) => {
@@ -23,14 +23,26 @@ app.post('/pix', async (req, res) => {
       })
     });
 
-    const data = await response.json();
+    const text = await response.text(); // 👈 MUDOU AQUI
+    console.log("RESPOSTA DA API:", text);
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.json({ erro: "API não retornou JSON", raw: text });
+    }
+
+    if (!data.emv) {
+      return res.json({ erro: "Pix não gerado", resposta: data });
+    }
 
     res.json({ copiaECola: data.emv });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ erro: 'Erro interno' });
+    console.log("ERRO GERAL:", err);
+    res.status(500).json({ erro: "Erro interno" });
   }
 });
 
-app.listen(3000, () => console.log("Servidor rodando"));
+app.listen(3000, () => console.log("rodando"));
