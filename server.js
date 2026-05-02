@@ -1,46 +1,57 @@
-import express from 'express';
-import fetch from 'node-fetch';
-import cors from 'cors';
+import express from "express";
+import fetch from "node-fetch";
+import cors from "cors";
+import crypto from "crypto";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-app.post('/pix', async (req, res) => {
+const MERCHANT_ID = "1346";
+const MERCHANT_KEY = process.env.EXPAY_KEY;
+
+function gerarSignature(valor) {
+  const base = `${MERCHANT_ID}${valor}BRL${MERCHANT_KEY}`;
+  return crypto.createHash("sha256").update(base).digest("hex");
+}
+
+app.post("/pix", async (req, res) => {
   try {
     const valor = req.body.valor;
 
-    const response = await fetch('https://expaybrasil.com/en/purchase/link', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        merchant_key: process.env.EXPAY_KEY,
-        currency_code: 'BRL',
-        amount: valor
-      })
+    const signature = gerarSignature(valor);
+
+    const params = new URLSearchParams();
+    params.append("merchant_id", MERCHANT_ID);
+    params.append("currency_code", "BRL");
+    params.append("amount", valor);
+    params.append("signature", signature);
+
+    const response = await fetch("https://expaybrasil.com/en/purchase/link", {
+      method: "POST",
+      body: params
     });
 
-    const text = await response.text(); // 👈 MUDOU AQUI
-    console.log("RESPOSTA DA API:", text);
+    const text = await response.text();
+    console.log("RESPOSTA:", text);
 
     let data;
     try {
       data = JSON.parse(text);
     } catch {
-      return res.json({ erro: "API não retornou JSON", raw: text });
+      return res.json({ erro: "Resposta não é JSON", raw: text });
     }
 
     if (!data.emv) {
-      return res.json({ erro: "Pix não gerado", resposta: data });
+      return res.json({ erro: "Pix não gerado", data });
     }
 
-    res.json({ copiaECola: data.emv });
+    res.json({
+      copiaECola: data.emv
+    });
 
   } catch (err) {
-    console.log("ERRO GERAL:", err);
+    console.log(err);
     res.status(500).json({ erro: "Erro interno" });
   }
 });
